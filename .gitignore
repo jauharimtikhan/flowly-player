@@ -13,4 +13,9 @@ dist/*.yml
 dist/*.blockmap
 dist/*.exe
 
+.github/workflows/*-old.yml
+
 .vscode
+
+*.pub
+github-actions
