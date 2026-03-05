@@ -1,5 +1,6 @@
 name: Build and Upload EXE
-
+permissions:
+  contents: write
 on:
   push:
     branches:
@@ -36,7 +37,7 @@ jobs:
           fi
 
       - name: Create Git Tag
-        if: steps.version.outputs.version != ''
+        if: github.ref_type != 'tag' && steps.version.outputs.version != ''
         shell: bash
         run: |
           git config user.name "github-actions"
