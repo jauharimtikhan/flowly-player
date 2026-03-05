@@ -79,13 +79,12 @@ jobs:
           chmod 600 ~/.ssh/github-actions
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Upload EXE to server (skip if exists)
-        shell: bash
-        env:
-          HOST: ${{ secrets.SERVER_HOST }}
-          USER: ${{ secrets.SERVER_USER }}
+      - name: Test SSH Connection
         run: |
+          ssh -i ~/.ssh/github-actions -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo SSH CONNECTED"
 
+      - name: Upload EXE ke server
+        run: |
           echo "Searching EXE files..."
 
           for file in $(find dist -name "*.exe"); do
@@ -94,10 +93,9 @@ jobs:
 
             echo "Checking $filename on server..."
 
-            ssh -i ~/.ssh/github-actions -o StrictHostKeyChecking=no $USER@$HOST \
-            "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/files/$filename"
-
-            if [ $? -eq 0 ]; then
+            if ssh -i ~/.ssh/github-actions -o StrictHostKeyChecking=no $USER@$HOST \
+              "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/files/$filename"
+            then
               echo "$filename already exists. Skipping upload."
             else
               echo "Uploading $filename..."
@@ -106,6 +104,9 @@ jobs:
             fi
 
           done
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+          USER: ${{ secrets.SERVER_USER }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
