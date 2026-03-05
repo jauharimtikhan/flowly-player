@@ -1,0 +1,54 @@
+name: Build and Upload EXE
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build:win
+
+      - name: Upload EXE files
+        shell: bash
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+          USER: ${{ secrets.SERVER_USER }}
+          PASS: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+
+          echo "Searching for EXE files..."
+
+          for file in $(find dist -name "*.exe"); do
+
+            filename=$(basename "$file")
+
+            echo "Checking $filename on server..."
+
+            sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST \
+            "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/$filename"
+
+            if [ $? -eq 0 ]; then
+              echo "$filename already exists. Skipping upload."
+            else
+              echo "Uploading $filename..."
+              sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$file" \
+              $USER@$HOST:/home/jtech/clusters/jauhar/flowlyplayer/public_html/
+            fi
+
+          done
