@@ -12,11 +12,17 @@ on:
 jobs:
   version:
     runs-on: ubuntu-latest
+
     outputs:
       version: ${{ steps.get_version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
       - name: Get version from package.json
         id: get_version
@@ -30,8 +36,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Create tag if not exists
+        shell: bash
         run: |
           git fetch --tags
 
@@ -64,9 +73,10 @@ jobs:
         run: npm install
 
       - name: Create .env
+        shell: bash
         run: |
-          echo YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }} >> .env
-          echo YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }} >> .env
+          echo "YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }}" >> .env
+          echo "YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }}" >> .env
 
       - name: Build Windows EXE
         run: npm run build:win
@@ -74,17 +84,24 @@ jobs:
       - name: Setup SSH
         shell: bash
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/github-actions
-          chmod 600 ~/.ssh/github-actions
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          mkdir -p $HOME/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > $HOME/.ssh/github-actions
+          chmod 600 $HOME/.ssh/github-actions
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> $HOME/.ssh/known_hosts
 
       - name: Test SSH Connection
+        shell: bash
         run: |
-          ssh -i ~/.ssh/github-actions -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo SSH CONNECTED"
+          ssh -i $HOME/.ssh/github-actions -o StrictHostKeyChecking=no \
+          ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo SSH CONNECTED"
 
       - name: Upload EXE ke server
+        shell: bash
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+          USER: ${{ secrets.SERVER_USER }}
         run: |
+
           echo "Searching EXE files..."
 
           for file in $(find dist -name "*.exe"); do
@@ -93,20 +110,17 @@ jobs:
 
             echo "Checking $filename on server..."
 
-            if ssh -i ~/.ssh/github-actions -o StrictHostKeyChecking=no $USER@$HOST \
+            if ssh -i $HOME/.ssh/github-actions -o StrictHostKeyChecking=no $USER@$HOST \
               "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/files/$filename"
             then
               echo "$filename already exists. Skipping upload."
             else
               echo "Uploading $filename..."
-              scp -i ~/.ssh/github-actions -o StrictHostKeyChecking=no "$file" \
+              scp -i $HOME/.ssh/github-actions -o StrictHostKeyChecking=no "$file" \
               $USER@$HOST:/home/jtech/clusters/jauhar/flowlyplayer/public_html/files/
             fi
 
           done
-        env:
-          HOST: ${{ secrets.SERVER_HOST }}
-          USER: ${{ secrets.SERVER_USER }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
