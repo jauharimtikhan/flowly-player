@@ -13,6 +13,7 @@ import trayPng from '@/resources/build/icon.png'
 import { registerResourcesProtocol } from './protocols'
 import { registerSystemHandler } from '../conveyor/handlers/system-handler'
 import { registerAppHandlers } from '../conveyor/handlers/app-handler'
+import { registerWindowHandlers } from '../conveyor/handlers/window-handler'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & Configuration
@@ -22,8 +23,8 @@ const IS_DEV = !app.isPackaged
 const IS_PRODUCTION = app.isPackaged
 
 const YOUTUBE_CONFIG = {
-  clientId: process.env['YOUTUBE_CLIENT_ID'] || '',
-  clientSecret: process.env['YOUTUBE_CLIENT_SECRET'] || '',
+  clientId: process.env.YOUTUBE_CLIENT_ID,
+  clientSecret: process.env.YOUTUBE_CLIENT_SECRET,
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
 } as const
 
@@ -219,50 +220,34 @@ function preventDevTools(win: BrowserWindow): void {
     })
   }
 }
-// function obfuscateConfig(): typeof YOUTUBE_CONFIG {
-//   if (IS_PRODUCTION) {
-//     // In production, credentials should come from encrypted storage or environment
-//     // This is just an example - implement proper encryption!
-//     return {
-//       clientId: decrypt(process.env.ENC_YT_CLIENT_ID || ''),
-//       clientSecret: decrypt(process.env.ENC_YT_CLIENT_SECRET || ''),
-//       tokenEndpoint: YOUTUBE_CONFIG.tokenEndpoint,
-//     }
-//   }
-//   return YOUTUBE_CONFIG
-// }
-// function decrypt(encrypted: string): string {
-//   // TODO: Implement proper decryption (AES-256, etc)
-//   // For now, just return as-is (NOT SECURE!)
-//   return encrypted
-// }
+
 function disableSourceMaps(win: BrowserWindow): void {
   if (IS_PRODUCTION) {
     win.webContents.on('did-finish-load', () => {
       // Inject script to disable source maps
       win.webContents.executeJavaScript(`
-        if (typeof window !== 'undefined') {
-          // Disable source map warnings
-          window.addEventListener('error', function(e) {
-            if (e.message && e.message.includes('Failed to load source map')) {
-              e.preventDefault();
-              e.stopPropagation();
-              return false;
-            }
-          }, true);
-          
-          // Remove source mapping URLs
-          if (typeof console !== 'undefined') {
-            const originalLog = console.log;
-            console.log = function(...args) {
-              if (args.some(arg => typeof arg === 'string' && arg.includes('sourceMappingURL'))) {
-                return;
+          if (typeof window !== 'undefined') {
+            // Disable source map warnings
+            window.addEventListener('error', function(e) {
+              if (e.message && e.message.includes('Failed to load source map')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
               }
-              originalLog.apply(console, args);
-            };
+            }, true);
+            
+            // Remove source mapping URLs
+            if (typeof console !== 'undefined') {
+              const originalLog = console.log;
+              console.log = function(...args) {
+                if (args.some(arg => typeof arg === 'string' && arg.includes('sourceMappingURL'))) {
+                  return;
+                }
+                originalLog.apply(console, args);
+              };
+            }
           }
-        }
-      `)
+        `)
     })
   }
 }
@@ -796,7 +781,7 @@ function generateAuthUrl(redirectUri: string): string {
   ].join(' ')
 
   const params = new URLSearchParams({
-    client_id: YOUTUBE_CONFIG.clientId,
+    client_id: (process.env.YOUTUBE_CLIENT_ID as string) || (YOUTUBE_CONFIG.clientId as string),
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: scopes,
@@ -829,12 +814,12 @@ function startOAuthServer(): Promise<OAuthServerResult> {
         if (code) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
           res.end(`
-              <!DOCTYPE html>
-              <html><head><title>Login Berhasil</title>
-              <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2);color:white;margin:0}.c{text-align:center;padding:40px;background:rgba(255,255,255,0.1);border-radius:20px}</style>
-              </head><body><div class="c"><h1>✅ Login Berhasil!</h1><p>Kembali ke Flowly Player...</p></div>
-              <script>setTimeout(()=>window.close(),2000)</script></body></html>
-            `)
+                <!DOCTYPE html>
+                <html><head><title>Login Berhasil</title>
+                <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2);color:white;margin:0}.c{text-align:center;padding:40px;background:rgba(255,255,255,0.1);border-radius:20px}</style>
+                </head><body><div class="c"><h1>✅ Login Berhasil!</h1><p>Kembali ke Flowly Player...</p></div>
+                <script>setTimeout(()=>window.close(),2000)</script></body></html>
+              `)
 
           state.mainWindow?.webContents.send(IPC_CHANNELS.OAUTH_CALLBACK, {
             code,
@@ -910,8 +895,11 @@ function stopOAuthServer(): void {
 async function exchangeYouTubeToken(code: string, redirectUri: string): Promise<TokenResponse> {
   const params = new URLSearchParams()
   params.append('code', code)
-  params.append('client_id', YOUTUBE_CONFIG.clientId)
-  params.append('client_secret', YOUTUBE_CONFIG.clientSecret)
+  params.append('client_id', (YOUTUBE_CONFIG.clientId as string) || (process.env.YOUTUBE_CLIENT_ID as string))
+  params.append(
+    'client_secret',
+    (YOUTUBE_CONFIG.clientSecret as string) || (process.env.YOUTUBE_CLIENT_SECRET as string)
+  )
   params.append('redirect_uri', redirectUri)
   params.append('grant_type', 'authorization_code')
 
@@ -925,8 +913,11 @@ async function exchangeYouTubeToken(code: string, redirectUri: string): Promise<
 async function refreshYouTubeToken(refreshToken: string): Promise<TokenResponse> {
   const params = new URLSearchParams()
   params.append('refresh_token', refreshToken)
-  params.append('client_id', YOUTUBE_CONFIG.clientId)
-  params.append('client_secret', YOUTUBE_CONFIG.clientSecret)
+  params.append('client_id', (YOUTUBE_CONFIG.clientId as string) || (process.env.YOUTUBE_CLIENT_ID as string))
+  params.append(
+    'client_secret',
+    (YOUTUBE_CONFIG.clientSecret as string) || (process.env.YOUTUBE_CLIENT_SECRET as string)
+  )
   params.append('grant_type', 'refresh_token')
 
   const response = await axios.post<TokenResponse>(YOUTUBE_CONFIG.tokenEndpoint, params.toString(), {
@@ -1236,6 +1227,7 @@ async function createMainWindow(): Promise<void> {
   if (state.tray && state.mainWindow) {
     registerSystemHandler(state.mainWindow, state.tray, app)
     registerAppHandlers(app)
+    registerWindowHandlers(state.mainWindow)
   }
 
   win.on('ready-to-show', () => {
@@ -1295,6 +1287,8 @@ if (!gotTheLock) {
     await createMainWindow()
 
     log(`Environment: ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'}`)
+    log('[DEBUG ENV YOUTUBE_CLIENT_ID]:', process.env.YOUTUBE_CLIENT_ID)
+    log('[DEBUG ENV YOUTUBE_CLIENT_SECRET]:', process.env.YOUTUBE_CLIENT_SECRET)
   })
 }
 

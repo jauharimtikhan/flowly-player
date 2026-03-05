@@ -1,6 +1,8 @@
 name: Build and Upload EXE
+
 permissions:
   contents: write
+
 on:
   push:
     branches:
@@ -10,47 +12,44 @@ on:
   workflow_dispatch:
 
 jobs:
+  create-tag:
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from commit message
+        id: tag
+        run: |
+          MSG=$(git log -1 --pretty=%B)
+          TAG=$(echo "$MSG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')
+
+          echo "Found tag: $TAG"
+
+          if [ ! -z "$TAG" ]; then
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Tag
+        if: steps.tag.outputs.tag != ''
+        run: |
+          git tag ${{ steps.tag.outputs.tag }}
+          git push origin ${{ steps.tag.outputs.tag }}
+
   build:
-    runs-on: windows-latest
+    needs: create-tag
+    if: startsWith(github.ref, 'refs/tags/v') || needs.create-tag.outputs.tag != ''
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Get commit message
-        id: commit
-        shell: bash
-        run: |
-          echo "message=${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
-
-      - name: Extract version
-        id: version
-        shell: bash
-        run: |
-          MSG="${{ steps.commit.outputs.message }}"
-          VERSION=$(echo "$MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+")
-
-          if [ -n "$VERSION" ]; then
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create Git Tag
-        if: github.ref_type != 'tag' && steps.version.outputs.version != ''
-        shell: bash
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-
-          TAG=${{ steps.version.outputs.version }}
-
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag already exists"
-          else
-            git tag $TAG
-            git push origin $TAG
-          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -60,10 +59,18 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Create .env file
+        run: |
+          echo "YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }}" >> .env
+          echo "YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }}" >> .env
+
       - name: Build
         run: npm run build:win
 
-      - name: Upload EXE files
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Upload EXE files to server
         shell: bash
         env:
           HOST: ${{ secrets.SERVER_HOST }}
@@ -80,14 +87,21 @@ jobs:
             echo "Checking $filename on server..."
 
             sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST \
-            "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/$filename"
+            "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/files/$filename"
 
             if [ $? -eq 0 ]; then
               echo "$filename already exists. Skipping upload."
             else
               echo "Uploading $filename..."
               sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$file" \
-              $USER@$HOST:/home/jtech/clusters/jauhar/flowlyplayer/public_html/
+              $USER@$HOST:/home/jtech/clusters/jauhar/flowlyplayer/public_html/files/
             fi
 
           done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

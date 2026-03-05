@@ -1,7 +1,10 @@
+import dotenv from 'dotenv'
+dotenv.config({ path: join(__dirname, '../../.env') })
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app'
 import { registerPrivilegedSchemes } from './protocols'
+import { join } from 'node:path'
 
 registerPrivilegedSchemes()
 
