@@ -1,0 +1,17 @@
+node_modules
+.DS_Store
+*.log*
+temp
+.env
+client_secret_948892985644-ukb88ievf3h99cgakg00q4i6jrpkcldr.apps.googleusercontent.com.json
+*.docx
+out
+resources/yt-dlp.exe
+
+dist/win-unpacked
+dist/*.yaml
+dist/*.yml
+dist/*.blockmap
+dist/*.exe
+
+.vscode
