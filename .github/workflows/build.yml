@@ -75,9 +75,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/github-actions
+          chmod 600 ~/.ssh/github-actions
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Upload EXE to server (skip if exists)
         shell: bash
@@ -94,13 +94,15 @@ jobs:
 
             echo "Checking $filename on server..."
 
-            ssh $USER@$HOST "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/files/$filename"
+            ssh -i ~/.ssh/github-actions -o StrictHostKeyChecking=no $USER@$HOST \
+            "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/files/$filename"
 
             if [ $? -eq 0 ]; then
               echo "$filename already exists. Skipping upload."
             else
               echo "Uploading $filename..."
-              scp "$file" $USER@$HOST:/home/jtech/clusters/jauhar/flowlyplayer/public_html/files/
+              scp -i ~/.ssh/github-actions -o StrictHostKeyChecking=no "$file" \
+              $USER@$HOST:/home/jtech/clusters/jauhar/flowlyplayer/public_html/files/
             fi
 
           done
