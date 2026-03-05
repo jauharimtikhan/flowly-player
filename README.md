@@ -221,6 +221,6 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 <div align="center">
 
-Made with ♪ by the Flowly Player team · [flowlyplayer.app](https://flowlyplayer.jtech.my.id)
+Made with ♪ by the Flowly Player team · [flowlyplayer.jtech.my.id](https://flowlyplayer.jtech.my.id)
 
 </div>
