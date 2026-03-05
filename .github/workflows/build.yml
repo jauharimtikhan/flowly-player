@@ -104,7 +104,8 @@ jobs:
 
           echo "Searching EXE files..."
 
-          for file in $(find dist -name "*.exe"); do
+          find dist -type f -name "*.exe" -print0 | while IFS= read -r -d '' file
+          do
 
             filename=$(basename "$file")
 
