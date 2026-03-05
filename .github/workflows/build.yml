@@ -43,7 +43,7 @@ jobs:
   build:
     needs: create-tag
     if: startsWith(github.ref, 'refs/tags/v') || needs.create-tag.outputs.tag != ''
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -61,43 +61,40 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }}" >> .env
-          echo "YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }}" >> .env
+          echo YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }} >> .env
+          echo YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }} >> .env
 
       - name: Build
         run: npm run build:win
 
-      - name: Install sshpass
-        run: sudo apt-get update && sudo apt-get install -y sshpass
-
       - name: Upload EXE files to server
-        shell: bash
+        shell: powershell
         env:
           HOST: ${{ secrets.SERVER_HOST }}
           USER: ${{ secrets.SERVER_USER }}
           PASS: ${{ secrets.SERVER_PASSWORD }}
         run: |
 
-          echo "Searching for EXE files..."
+          Write-Host "Searching EXE files..."
 
-          for file in $(find dist -name "*.exe"); do
+          $files = Get-ChildItem -Path dist -Recurse -Filter *.exe
 
-            filename=$(basename "$file")
+          foreach ($file in $files) {
 
-            echo "Checking $filename on server..."
+            $filename = $file.Name
+            Write-Host "Checking $filename on server..."
 
-            sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST \
-            "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/files/$filename"
+            ssh $env:USER@$env:HOST "test -f /home/jtech/clusters/jauhar/flowlyplayer/public_html/files/$filename"
 
-            if [ $? -eq 0 ]; then
-              echo "$filename already exists. Skipping upload."
-            else
-              echo "Uploading $filename..."
-              sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$file" \
-              $USER@$HOST:/home/jtech/clusters/jauhar/flowlyplayer/public_html/files/
-            fi
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "$filename already exists. Skipping upload."
+            }
+            else {
+                Write-Host "Uploading $filename..."
+                scp $file.FullName "$env:USER@$env:HOST:/home/jtech/clusters/jauhar/flowlyplayer/public_html/files/"
+            }
 
-          done
+          }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
