@@ -1,7 +1,7 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu, NativeImage, nativeImage, shell, Tray } from 'electron'
 import { createServer, Server, IncomingMessage, ServerResponse } from 'node:http'
 import { readFile } from 'node:fs/promises'
-import { existsSync, createWriteStream } from 'node:fs'
+import { existsSync, createWriteStream, unlinkSync, statSync, chmodSync } from 'node:fs'
 import { join, extname } from 'node:path'
 import { parse as parseUrl } from 'node:url'
 import { spawn } from 'node:child_process'
@@ -397,57 +397,59 @@ async function downloadYtDlp(): Promise<string> {
   log(`Downloading yt-dlp from: ${downloadUrl}`)
   log(`Saving to: ${filePath}`)
 
-  return new Promise((resolve, reject) => {
-    const file = createWriteStream(filePath)
+  // Hapus file lama jika ada (mencegah bentrok)
+  if (existsSync(filePath)) {
+    try {
+      unlinkSync(filePath)
+    } catch (e) {
+      logError('Gagal menghapus file lama yt-dlp', e)
+    }
+  }
 
-    const request = https.get(downloadUrl, (response) => {
-      // Handle redirects
-      if (response.statusCode === 302 || response.statusCode === 301) {
-        const redirectUrl = response.headers.location
-        if (redirectUrl) {
-          https
-            .get(redirectUrl, (redirectResponse) => {
-              redirectResponse.pipe(file)
-              file.on('finish', () => {
-                file.close()
-                // Make executable on Unix
-                if (process.platform !== 'win32') {
-                  const { chmodSync } = require('fs')
-                  chmodSync(filePath, 0o755)
-                }
-                state.ytdlpPath = filePath
-                log(`yt-dlp downloaded successfully`)
-                resolve(filePath)
-              })
-            })
-            .on('error', (err) => {
-              reject(err)
-            })
+  try {
+    // Gunakan axios untuk menghandle stream & otomatis follow redirects GitHub
+    const response = await axios({
+      method: 'GET',
+      url: downloadUrl,
+      responseType: 'stream',
+      maxRedirects: 5,
+    })
+
+    const writer = createWriteStream(filePath)
+    response.data.pipe(writer)
+
+    return new Promise((resolve, reject) => {
+      writer.on('finish', () => {
+        writer.close()
+
+        // VALIDASI: Cek apakah ukuran file masuk akal (yt-dlp biasanya > 10MB)
+        // Jika di bawah 1MB, berarti yang terdownload adalah HTML halaman error
+        const stats = statSync(filePath)
+        if (stats.size < 1024 * 1024) {
+          unlinkSync(filePath) // Hapus file sampahnya
+          reject(new Error('File yang diunduh corrupt (ukuran terlalu kecil).'))
           return
         }
-      }
 
-      response.pipe(file)
-      file.on('finish', () => {
-        file.close()
+        // Berikan permission execute untuk Mac/Linux
         if (process.platform !== 'win32') {
-          const { chmodSync } = require('fs')
           chmodSync(filePath, 0o755)
         }
+
         state.ytdlpPath = filePath
-        log(`yt-dlp downloaded successfully`)
+        log(`yt-dlp downloaded successfully to ${filePath}`)
         resolve(filePath)
       })
-    })
 
-    request.on('error', (err) => {
-      reject(err)
+      writer.on('error', (err) => {
+        writer.close()
+        if (existsSync(filePath)) unlinkSync(filePath)
+        reject(err)
+      })
     })
-
-    file.on('error', (err) => {
-      reject(err)
-    })
-  })
+  } catch (error: any) {
+    throw new Error(`Gagal mengunduh yt-dlp: ${error.message}`)
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -516,7 +518,7 @@ async function getAudioUrl(videoId: string): Promise<AudioInfo> {
     // Get audio-only format URL
     const audioUrlOutput = await runYtDlp([
       '-f',
-      'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
+      'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio', // 🌟 Paksa m4a/mp3 jika memungkinkan
       '-g', // Get URL only
       '--no-warnings',
       '--no-playlist',
@@ -621,54 +623,66 @@ async function startAudioProxyServer(): Promise<number> {
         return
       }
 
-      try {
-        // Proxy the audio request
-        const proxyReq = https.get(
-          audioUrl,
-          {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              Accept: '*/*',
-              'Accept-Encoding': 'identity',
-              Range: req.headers.range || '',
+      // 🌟 FUNGSI REKURSIF UNTUK FOLLOW REDIRECTS YOUTUBE
+      const fetchStream = (streamUrl: string, redirectCount = 0) => {
+        if (redirectCount > 5) {
+          res.writeHead(500)
+          res.end('Too many redirects')
+          return
+        }
+
+        try {
+          const proxyReq = https.get(
+            streamUrl,
+            {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                Accept: '*/*',
+                'Accept-Encoding': 'identity',
+                Range: req.headers.range || '', // Sangat penting untuk seeking (slider)
+              },
             },
-          },
-          (proxyRes) => {
-            // Set CORS headers
-            res.setHeader('Access-Control-Allow-Origin', '*')
-            res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
-            res.setHeader('Access-Control-Allow-Headers', 'Range')
-            res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range')
+            (proxyRes) => {
+              // 🌟 HANDLE REDIRECT (301, 302, 303, 307, 308)
+              if (
+                proxyRes.statusCode &&
+                [301, 302, 303, 307, 308].includes(proxyRes.statusCode) &&
+                proxyRes.headers.location
+              ) {
+                return fetchStream(proxyRes.headers.location, redirectCount + 1)
+              }
 
-            // Forward headers
-            if (proxyRes.headers['content-type']) {
-              res.setHeader('Content-Type', proxyRes.headers['content-type'])
-            }
-            if (proxyRes.headers['content-length']) {
-              res.setHeader('Content-Length', proxyRes.headers['content-length'])
-            }
-            if (proxyRes.headers['content-range']) {
-              res.setHeader('Content-Range', proxyRes.headers['content-range'])
-            }
-            if (proxyRes.headers['accept-ranges']) {
-              res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges'])
-            }
+              // Set CORS headers agar Web Audio API (Equalizer) tidak di-block
+              res.setHeader('Access-Control-Allow-Origin', '*')
+              res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+              res.setHeader('Access-Control-Allow-Headers', 'Range')
+              res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range')
 
-            res.writeHead(proxyRes.statusCode || 200)
-            proxyRes.pipe(res)
-          }
-        )
+              // Forward Content Headers dari YouTube
+              if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type'])
+              if (proxyRes.headers['content-length'])
+                res.setHeader('Content-Length', proxyRes.headers['content-length'])
+              if (proxyRes.headers['content-range']) res.setHeader('Content-Range', proxyRes.headers['content-range'])
+              if (proxyRes.headers['accept-ranges']) res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges'])
 
-        proxyReq.on('error', (err) => {
-          logError('Proxy request error:', err)
+              res.writeHead(proxyRes.statusCode || 200)
+              proxyRes.pipe(res)
+            }
+          )
+
+          proxyReq.on('error', (err) => {
+            logError('Proxy request error:', err)
+            res.writeHead(500)
+            res.end('Proxy error')
+          })
+        } catch (err) {
+          logError('Proxy error:', err)
           res.writeHead(500)
           res.end('Proxy error')
-        })
-      } catch (err) {
-        logError('Proxy error:', err)
-        res.writeHead(500)
-        res.end('Proxy error')
+        }
       }
+
+      fetchStream(audioUrl) // Mulai fetch
     })
 
     // Handle OPTIONS for CORS preflight
@@ -1252,7 +1266,18 @@ async function createMainWindow(): Promise<void> {
     return { action: 'deny' }
   })
 
-  await win.loadURL(rendererURL)
+  try {
+    await win.loadURL(rendererURL)
+  } catch (err: any) {
+    logError(`Failed to load ${rendererURL}:`, err.message)
+
+    if (IS_DEV) {
+      log('Vite server might still be starting. Retrying in 3 seconds...')
+      setTimeout(() => {
+        win.loadURL(rendererURL).catch((e) => logError('Retry failed:', e.message))
+      }, 3000)
+    }
+  }
 
   // Force close DevTools if somehow opened in production
   if (IS_PRODUCTION && win.webContents.isDevToolsOpened()) {

@@ -1,6 +1,6 @@
 {
   "name": "flowly-player",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Background Youtube Music Player",
   "main": "./out/main/main.js",
   "license": "MIT",

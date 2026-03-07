@@ -1,8 +1,23 @@
 import React from 'react'
 import Avatar from './avatar'
-import { LogOut, Minus, X } from 'lucide-react'
+import { LogIn, LogOut, Minus, X } from 'lucide-react'
 
-const TitleBar = ({ youtubeAuth, handleLogout, eAPI }: { youtubeAuth: any; handleLogout: any; eAPI: any }) => {
+const TitleBar = ({
+  youtubeAuth,
+  handleLogout,
+  eAPI,
+  isLogged,
+  setShowLoginModal,
+  setIsLogged,
+}: {
+  setIsLogged: any
+  youtubeAuth: any
+  handleLogout: any
+  eAPI: any
+  isLogged: boolean
+  showLoginModal: any
+  setShowLoginModal: any
+}) => {
   return (
     <div className="titlebar">
       <div className="tb-left">
@@ -21,6 +36,18 @@ const TitleBar = ({ youtubeAuth, handleLogout, eAPI }: { youtubeAuth: any; handl
               <LogOut size={12} />
             </button>
           </div>
+        )}
+        {!isLogged && (
+          <button
+            onClick={() => {
+              setIsLogged(true)
+              setShowLoginModal(true)
+            }}
+            title="Login"
+            className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 p-0.5 tb-no-drag hover:cursor-pointer"
+          >
+            <LogIn size={15} /> <span className="text-xs">Login</span>
+          </button>
         )}
       </div>
       <div className="tb-btns">

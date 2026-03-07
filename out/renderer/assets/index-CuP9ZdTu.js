@@ -12529,19 +12529,19 @@ const createLucideIcon = (iconName, iconNode) => {
   Component.displayName = toPascalCase(iconName);
   return Component;
 };
-const __iconNode$o = [
+const __iconNode$p = [
   ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
   ["line", { x1: "12", x2: "12", y1: "8", y2: "12", key: "1pkeuh" }],
   ["line", { x1: "12", x2: "12.01", y1: "16", y2: "16", key: "4dfq90" }]
 ];
-const CircleAlert = createLucideIcon("circle-alert", __iconNode$o);
-const __iconNode$n = [
+const CircleAlert = createLucideIcon("circle-alert", __iconNode$p);
+const __iconNode$o = [
   ["path", { d: "M12 15V3", key: "m9g1x1" }],
   ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", key: "ih7n3h" }],
   ["path", { d: "m7 10 5 5 5-5", key: "brsn70" }]
 ];
-const Download = createLucideIcon("download", __iconNode$n);
-const __iconNode$m = [
+const Download = createLucideIcon("download", __iconNode$o);
+const __iconNode$n = [
   [
     "path",
     { d: "M12 6a2 2 0 0 1 3.414-1.414l6 6a2 2 0 0 1 0 2.828l-6 6A2 2 0 0 1 12 18z", key: "b19h5q" }
@@ -12551,17 +12551,23 @@ const __iconNode$m = [
     { d: "M2 6a2 2 0 0 1 3.414-1.414l6 6a2 2 0 0 1 0 2.828l-6 6A2 2 0 0 1 2 18z", key: "h7h5ge" }
   ]
 ];
-const FastForward = createLucideIcon("fast-forward", __iconNode$m);
-const __iconNode$l = [
+const FastForward = createLucideIcon("fast-forward", __iconNode$n);
+const __iconNode$m = [
   ["path", { d: "M16 5H3", key: "m91uny" }],
   ["path", { d: "M11 12H3", key: "51ecnj" }],
   ["path", { d: "M11 19H3", key: "zflm78" }],
   ["path", { d: "M21 16V5", key: "yxg4q8" }],
   ["circle", { cx: "18", cy: "16", r: "3", key: "1hluhg" }]
 ];
-const ListMusic = createLucideIcon("list-music", __iconNode$l);
-const __iconNode$k = [["path", { d: "M21 12a9 9 0 1 1-6.219-8.56", key: "13zald" }]];
-const LoaderCircle = createLucideIcon("loader-circle", __iconNode$k);
+const ListMusic = createLucideIcon("list-music", __iconNode$m);
+const __iconNode$l = [["path", { d: "M21 12a9 9 0 1 1-6.219-8.56", key: "13zald" }]];
+const LoaderCircle = createLucideIcon("loader-circle", __iconNode$l);
+const __iconNode$k = [
+  ["path", { d: "m10 17 5-5-5-5", key: "1bsop3" }],
+  ["path", { d: "M15 12H3", key: "6jk70r" }],
+  ["path", { d: "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4", key: "u53s6r" }]
+];
+const LogIn = createLucideIcon("log-in", __iconNode$k);
 const __iconNode$j = [
   ["path", { d: "m16 17 5-5-5-5", key: "1bji2h" }],
   ["path", { d: "M21 12H9", key: "dn1m92" }],
@@ -16063,7 +16069,14 @@ function Avatar({
     }
   );
 }
-const TitleBar = ({ youtubeAuth, handleLogout, eAPI: eAPI2 }) => {
+const TitleBar = ({
+  youtubeAuth,
+  handleLogout,
+  eAPI: eAPI2,
+  isLogged,
+  setShowLoginModal,
+  setIsLogged
+}) => {
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "titlebar", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "tb-left", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "tb-name", children: [
@@ -16082,7 +16095,23 @@ const TitleBar = ({ youtubeAuth, handleLogout, eAPI: eAPI2 }) => {
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogOut, { size: 12 })
           }
         )
-      ] })
+      ] }),
+      !isLogged && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          onClick: () => {
+            setIsLogged(true);
+            setShowLoginModal(true);
+          },
+          title: "Login",
+          className: "flex items-center gap-1 text-emerald-400 hover:text-emerald-300 p-0.5 tb-no-drag hover:cursor-pointer",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(LogIn, { size: 15 }),
+            " ",
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs", children: "Login" })
+          ]
+        }
+      )
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "tb-btns", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "tb-btn", onClick: eAPI2.minimizeToTray, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Minus, { size: 12 }) }),
@@ -16807,6 +16836,7 @@ const FlowlyPlayer = () => {
   const [tab, setTab] = reactExports.useState("player");
   const conveyorHooks = useConveyor();
   const [appVersion, setAppversion] = reactExports.useState("");
+  const [isLogged, setIsLogged] = reactExports.useState(false);
   const audioEngineRef = reactExports.useRef(null);
   const [isLoading, setIsLoading] = reactExports.useState(false);
   const [loadError, setLoadError] = reactExports.useState(null);
@@ -16936,19 +16966,12 @@ const FlowlyPlayer = () => {
     checkYtDlp();
   }, [toast]);
   const playTrackByIndex = reactExports.useCallback(
-    async (idx) => {
+    async (idx, isRetry = false) => {
       const pl = playlistRef.current;
-      if (idx < 0 || idx >= pl.length) {
-        console.log("[Flowly] Invalid index:", idx, "playlist length:", pl.length);
-        return;
-      }
+      if (idx < 0 || idx >= pl.length) return;
       const track = pl[idx];
       const engine = audioEngineRef.current;
-      if (!engine) {
-        console.log("[Flowly] No audio engine");
-        return;
-      }
-      console.log(`[Flowly] Playing track ${idx + 1}/${pl.length}: ${track.title}`);
+      if (!engine) return;
       setCurIdx(idx);
       setTrackPos(`${idx + 1} / ${pl.length}`);
       setThumbId(track.id);
@@ -16971,22 +16994,22 @@ const FlowlyPlayer = () => {
         }
         setIsPlaying(true);
         toast("▶️ Memutar");
-        eAPI.sendPlayerState({
-          isPlaying: true,
-          title: audioInfo.title,
-          volume: volumeRef.current
-        });
-        prefetchNextAudio();
+        eAPI.sendPlayerState({ isPlaying: true, title: audioInfo.title, volume: volumeRef.current });
       } catch (error) {
         console.error("[Flowly] Play error:", error);
-        setLoadError(error.message || "Gagal memuat audio");
-        toast(`❌ ${error.message || "Gagal memuat audio"}`);
+        if (!isRetry) {
+          console.log("[Flowly] Menghapus cache basi dan mencoba ulang...");
+          audioCacheRef.current.delete(track.id);
+          return playTrackByIndex(idx, true);
+        }
+        setLoadError("Format media tidak didukung atau URL kadaluarsa");
+        toast(`❌ Gagal memutar lagu`);
         setIsPlaying(false);
       } finally {
         setIsLoading(false);
       }
     },
-    [toast, getOrFetchAudioInfo, prefetchNextAudio]
+    [toast, getOrFetchAudioInfo]
   );
   const handleTrackEnded = reactExports.useCallback(() => {
     const currentMode = modeRef.current;
@@ -17157,6 +17180,7 @@ const FlowlyPlayer = () => {
       const auth = loadYouTubeAuth();
       if (auth) {
         if (auth.expiresAt > Date.now()) {
+          setIsLogged(true);
           setYoutubeAuth(auth);
           fetchUserPlaylists(auth.accessToken);
         } else if (auth.refreshToken) {
@@ -17169,17 +17193,20 @@ const FlowlyPlayer = () => {
             };
             saveYouTubeAuth(newAuth);
             setYoutubeAuth(newAuth);
+            setIsLogged(true);
             fetchUserPlaylists(newAuth.accessToken);
           } catch {
             clearYouTubeAuth();
             setShowLoginModal(true);
+            setIsLogged(false);
           }
         } else {
           clearYouTubeAuth();
+          setIsLogged(false);
           setShowLoginModal(true);
         }
       } else {
-        setShowLoginModal(true);
+        setIsLogged(false);
       }
     };
     checkAuth();
@@ -17653,33 +17680,82 @@ const FlowlyPlayer = () => {
   }, [conveyorHooks]);
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-    ytdlpStatus.downloading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 bg-black/80 flex items-center justify-center z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-gray-800 p-6 rounded-xl text-center", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { size: 40, className: "animate-bounce mx-auto mb-4 text-purple-400" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-lg font-bold mb-2", children: "Mengunduh yt-dlp" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-gray-400", children: "Diperlukan untuk memutar audio YouTube..." })
-    ] }) }),
-    showLoginModal && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 bg-black/90 flex items-center justify-center z-50 backdrop-blur-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-linear-to-br from-gray-900 to-gray-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-gray-700 padding-1", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-6", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-16 h-16 bg-red-600 rounded-full flex items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Youtube, { size: 32, className: "text-white" }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-2xl font-bold text-white", children: "Login ke YouTube" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-gray-400 text-center text-sm", children: "Login untuk mengakses playlist dan pencarian" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "button",
-        {
-          onClick: handleYouTubeLogin,
-          disabled: isLoggingIn,
-          style: {
-            paddingTop: 12,
-            paddingBottom: 12
-          },
-          className: "w-full bg-red-600 hover:bg-red-700 disabled:bg-red-800 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-3 hover:cursor-pointer",
-          children: [
-            isLoggingIn ? /* @__PURE__ */ jsxRuntimeExports.jsx(LoaderCircle, { size: 20, className: "animate-spin" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Youtube, { size: 20 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isLoggingIn ? "Menunggu..." : "Login dengan Google" })
-          ]
-        }
-      )
-    ] }) }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(TitleBar, { eAPI, youtubeAuth, handleLogout }),
+    ytdlpStatus.downloading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 bg-black/80 flex items-center justify-center z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        className: "bg-gray-800 rounded-xl text-center",
+        style: {
+          padding: 24
+        },
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            Download,
+            {
+              size: 40,
+              className: "animate-bounce text-purple-400",
+              style: {
+                marginBottom: 16,
+                marginInline: "auto"
+              }
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "h3",
+            {
+              className: "text-lg font-bold",
+              style: {
+                marginBottom: 8
+              },
+              children: "Mengunduh yt-dlp"
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-gray-400", children: "Diperlukan untuk memutar audio YouTube..." })
+        ]
+      }
+    ) }),
+    isLogged && showLoginModal && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        onClick: () => {
+          setIsLogged(false);
+          setShowLoginModal(false);
+        },
+        className: "fixed inset-0 bg-black/90 flex items-center justify-center z-50 backdrop-blur-sm",
+        children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-linear-to-br from-gray-900 to-gray-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-gray-700 padding-1", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-6", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-16 h-16 bg-red-600 rounded-full flex items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Youtube, { size: 32, className: "text-white" }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-2xl font-bold text-white", children: "Login ke YouTube" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-gray-400 text-center text-sm", children: "Login untuk mengakses playlist dan pencarian" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              onClick: handleYouTubeLogin,
+              disabled: isLoggingIn,
+              style: {
+                paddingTop: 12,
+                paddingBottom: 12
+              },
+              className: "w-full bg-red-600 hover:bg-red-700 disabled:bg-red-800 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-3 hover:cursor-pointer",
+              children: [
+                isLoggingIn ? /* @__PURE__ */ jsxRuntimeExports.jsx(LoaderCircle, { size: 20, className: "animate-spin" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Youtube, { size: 20 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isLoggingIn ? "Menunggu..." : "Login dengan Google" })
+              ]
+            }
+          )
+        ] }) })
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      TitleBar,
+      {
+        setIsLogged,
+        showLoginModal,
+        setShowLoginModal,
+        isLogged,
+        eAPI,
+        youtubeAuth,
+        handleLogout
+      }
+    ),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Tabs, { tab, setTab, playlist }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       PlayerPage,

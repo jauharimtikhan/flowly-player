@@ -525,49 +525,47 @@ async function downloadYtDlp() {
   const downloadUrl = process.platform === "win32" ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" : process.platform === "darwin" ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos" : "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
   log(`Downloading yt-dlp from: ${downloadUrl}`);
   log(`Saving to: ${filePath}`);
-  return new Promise((resolve, reject) => {
-    const file = node_fs.createWriteStream(filePath);
-    const request = https.get(downloadUrl, (response) => {
-      if (response.statusCode === 302 || response.statusCode === 301) {
-        const redirectUrl = response.headers.location;
-        if (redirectUrl) {
-          https.get(redirectUrl, (redirectResponse) => {
-            redirectResponse.pipe(file);
-            file.on("finish", () => {
-              file.close();
-              if (process.platform !== "win32") {
-                const { chmodSync } = require("fs");
-                chmodSync(filePath, 493);
-              }
-              state.ytdlpPath = filePath;
-              log(`yt-dlp downloaded successfully`);
-              resolve(filePath);
-            });
-          }).on("error", (err) => {
-            reject(err);
-          });
+  if (node_fs.existsSync(filePath)) {
+    try {
+      node_fs.unlinkSync(filePath);
+    } catch (e) {
+      logError("Gagal menghapus file lama yt-dlp", e);
+    }
+  }
+  try {
+    const response = await axios({
+      method: "GET",
+      url: downloadUrl,
+      responseType: "stream",
+      maxRedirects: 5
+    });
+    const writer = node_fs.createWriteStream(filePath);
+    response.data.pipe(writer);
+    return new Promise((resolve, reject) => {
+      writer.on("finish", () => {
+        writer.close();
+        const stats = node_fs.statSync(filePath);
+        if (stats.size < 1024 * 1024) {
+          node_fs.unlinkSync(filePath);
+          reject(new Error("File yang diunduh corrupt (ukuran terlalu kecil)."));
           return;
         }
-      }
-      response.pipe(file);
-      file.on("finish", () => {
-        file.close();
         if (process.platform !== "win32") {
-          const { chmodSync } = require("fs");
-          chmodSync(filePath, 493);
+          node_fs.chmodSync(filePath, 493);
         }
         state.ytdlpPath = filePath;
-        log(`yt-dlp downloaded successfully`);
+        log(`yt-dlp downloaded successfully to ${filePath}`);
         resolve(filePath);
       });
+      writer.on("error", (err) => {
+        writer.close();
+        if (node_fs.existsSync(filePath)) node_fs.unlinkSync(filePath);
+        reject(err);
+      });
     });
-    request.on("error", (err) => {
-      reject(err);
-    });
-    file.on("error", (err) => {
-      reject(err);
-    });
-  });
+  } catch (error) {
+    throw new Error(`Gagal mengunduh yt-dlp: ${error.message}`);
+  }
 }
 function runYtDlp(args) {
   return new Promise((resolve, reject) => {
@@ -614,7 +612,8 @@ async function getAudioUrl(videoId) {
     const info = JSON.parse(infoJson);
     const audioUrlOutput = await runYtDlp([
       "-f",
-      "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
+      "bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio",
+      // 🌟 Paksa m4a/mp3 jika memungkinkan
       "-g",
       // Get URL only
       "--no-warnings",
@@ -698,48 +697,53 @@ async function startAudioProxyServer() {
         res.end("Missing URL parameter");
         return;
       }
-      try {
-        const proxyReq = https.get(
-          audioUrl,
-          {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              Accept: "*/*",
-              "Accept-Encoding": "identity",
-              Range: req.headers.range || ""
+      const fetchStream = (streamUrl, redirectCount = 0) => {
+        if (redirectCount > 5) {
+          res.writeHead(500);
+          res.end("Too many redirects");
+          return;
+        }
+        try {
+          const proxyReq = https.get(
+            streamUrl,
+            {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                Accept: "*/*",
+                "Accept-Encoding": "identity",
+                Range: req.headers.range || ""
+                // Sangat penting untuk seeking (slider)
+              }
+            },
+            (proxyRes) => {
+              if (proxyRes.statusCode && [301, 302, 303, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
+                return fetchStream(proxyRes.headers.location, redirectCount + 1);
+              }
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+              res.setHeader("Access-Control-Allow-Headers", "Range");
+              res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Range");
+              if (proxyRes.headers["content-type"]) res.setHeader("Content-Type", proxyRes.headers["content-type"]);
+              if (proxyRes.headers["content-length"])
+                res.setHeader("Content-Length", proxyRes.headers["content-length"]);
+              if (proxyRes.headers["content-range"]) res.setHeader("Content-Range", proxyRes.headers["content-range"]);
+              if (proxyRes.headers["accept-ranges"]) res.setHeader("Accept-Ranges", proxyRes.headers["accept-ranges"]);
+              res.writeHead(proxyRes.statusCode || 200);
+              proxyRes.pipe(res);
             }
-          },
-          (proxyRes) => {
-            res.setHeader("Access-Control-Allow-Origin", "*");
-            res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-            res.setHeader("Access-Control-Allow-Headers", "Range");
-            res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Range");
-            if (proxyRes.headers["content-type"]) {
-              res.setHeader("Content-Type", proxyRes.headers["content-type"]);
-            }
-            if (proxyRes.headers["content-length"]) {
-              res.setHeader("Content-Length", proxyRes.headers["content-length"]);
-            }
-            if (proxyRes.headers["content-range"]) {
-              res.setHeader("Content-Range", proxyRes.headers["content-range"]);
-            }
-            if (proxyRes.headers["accept-ranges"]) {
-              res.setHeader("Accept-Ranges", proxyRes.headers["accept-ranges"]);
-            }
-            res.writeHead(proxyRes.statusCode || 200);
-            proxyRes.pipe(res);
-          }
-        );
-        proxyReq.on("error", (err) => {
-          logError("Proxy request error:", err);
+          );
+          proxyReq.on("error", (err) => {
+            logError("Proxy request error:", err);
+            res.writeHead(500);
+            res.end("Proxy error");
+          });
+        } catch (err) {
+          logError("Proxy error:", err);
           res.writeHead(500);
           res.end("Proxy error");
-        });
-      } catch (err) {
-        logError("Proxy error:", err);
-        res.writeHead(500);
-        res.end("Proxy error");
-      }
+        }
+      };
+      fetchStream(audioUrl);
     });
     server.on("request", (req, res) => {
       if (req.method === "OPTIONS") {
@@ -1197,7 +1201,17 @@ async function createMainWindow() {
     electron.shell.openExternal(url2);
     return { action: "deny" };
   });
-  await win.loadURL(rendererURL);
+  try {
+    await win.loadURL(rendererURL);
+  } catch (err) {
+    logError(`Failed to load ${rendererURL}:`, err.message);
+    if (IS_DEV) {
+      log("Vite server might still be starting. Retrying in 3 seconds...");
+      setTimeout(() => {
+        win.loadURL(rendererURL).catch((e) => logError("Retry failed:", e.message));
+      }, 3e3);
+    }
+  }
   if (IS_PRODUCTION && win.webContents.isDevToolsOpened()) {
     win.webContents.closeDevTools();
   }

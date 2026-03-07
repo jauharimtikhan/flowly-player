@@ -93,6 +93,7 @@ const FlowlyPlayer = () => {
   const [tab, setTab] = useState<TabMode>('player')
   const conveyorHooks = useConveyor()
   const [appVersion, setAppversion] = useState('')
+  const [isLogged, setIsLogged] = useState(false)
 
   // Audio Engine
   const audioEngineRef = useRef<AudioEngine | null>(null)
@@ -265,21 +266,14 @@ const FlowlyPlayer = () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   const playTrackByIndex = useCallback(
-    async (idx: number) => {
+    async (idx: number, isRetry = false) => {
+      // 🌟 Tambah parameter isRetry
       const pl = playlistRef.current
-      if (idx < 0 || idx >= pl.length) {
-        console.log('[Flowly] Invalid index:', idx, 'playlist length:', pl.length)
-        return
-      }
+      if (idx < 0 || idx >= pl.length) return
 
       const track = pl[idx]
       const engine = audioEngineRef.current
-      if (!engine) {
-        console.log('[Flowly] No audio engine')
-        return
-      }
-
-      console.log(`[Flowly] Playing track ${idx + 1}/${pl.length}: ${track.title}`)
+      if (!engine) return
 
       setCurIdx(idx)
       setTrackPos(`${idx + 1} / ${pl.length}`)
@@ -290,7 +284,7 @@ const FlowlyPlayer = () => {
       try {
         toast('⏳ Memuat audio...')
 
-        // 🔥 gunakan cache-aware fetch
+        // Menggunakan cache helper
         const audioInfo = await getOrFetchAudioInfo(track.id)
 
         setTrackName(audioInfo.title || track.title)
@@ -302,6 +296,7 @@ const FlowlyPlayer = () => {
           )
         )
 
+        // 🌟 TUNGGU SAMPAI AUDIO BENAR-BENAR LOADED
         await engine.loadAndPlay(audioInfo.url)
         engine.setVolume(volumeRef.current)
 
@@ -312,24 +307,25 @@ const FlowlyPlayer = () => {
         setIsPlaying(true)
         toast('▶️ Memutar')
 
-        eAPI.sendPlayerState({
-          isPlaying: true,
-          title: audioInfo.title,
-          volume: volumeRef.current,
-        })
-
-        // 🔥 setelah sukses play, prefetch track berikutnya
-        prefetchNextAudio()
+        eAPI.sendPlayerState({ isPlaying: true, title: audioInfo.title, volume: volumeRef.current })
       } catch (error: any) {
         console.error('[Flowly] Play error:', error)
-        setLoadError(error.message || 'Gagal memuat audio')
-        toast(`❌ ${error.message || 'Gagal memuat audio'}`)
+
+        // 🌟 JIKA GAGAL (KEMUNGKINAN URL EXPIRED/CACHE BASI), HAPUS CACHE & COBA LAGI SEKALI
+        if (!isRetry) {
+          console.log('[Flowly] Menghapus cache basi dan mencoba ulang...')
+          audioCacheRef.current.delete(track.id)
+          return playTrackByIndex(idx, true) // Rekursif 1x retry
+        }
+
+        setLoadError('Format media tidak didukung atau URL kadaluarsa')
+        toast(`❌ Gagal memutar lagu`)
         setIsPlaying(false)
       } finally {
         setIsLoading(false)
       }
     },
-    [toast, getOrFetchAudioInfo, prefetchNextAudio]
+    [toast, getOrFetchAudioInfo]
   )
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -559,6 +555,7 @@ const FlowlyPlayer = () => {
       const auth = loadYouTubeAuth()
       if (auth) {
         if (auth.expiresAt > Date.now()) {
+          setIsLogged(true)
           setYoutubeAuth(auth)
           fetchUserPlaylists(auth.accessToken)
         } else if (auth.refreshToken) {
@@ -571,17 +568,20 @@ const FlowlyPlayer = () => {
             }
             saveYouTubeAuth(newAuth)
             setYoutubeAuth(newAuth)
+            setIsLogged(true)
             fetchUserPlaylists(newAuth.accessToken)
           } catch {
             clearYouTubeAuth()
             setShowLoginModal(true)
+            setIsLogged(false)
           }
         } else {
           clearYouTubeAuth()
+          setIsLogged(false)
           setShowLoginModal(true)
         }
       } else {
-        setShowLoginModal(true)
+        setIsLogged(false)
       }
     }
     checkAuth()
@@ -1132,17 +1132,42 @@ const FlowlyPlayer = () => {
       {/* yt-dlp Download Modal */}
       {ytdlpStatus.downloading && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-xl text-center">
-            <Download size={40} className="animate-bounce mx-auto mb-4 text-purple-400" />
-            <h3 className="text-lg font-bold mb-2">Mengunduh yt-dlp</h3>
+          <div
+            className="bg-gray-800 rounded-xl text-center"
+            style={{
+              padding: 24,
+            }}
+          >
+            <Download
+              size={40}
+              className="animate-bounce text-purple-400"
+              style={{
+                marginBottom: 16,
+                marginInline: 'auto',
+              }}
+            />
+            <h3
+              className="text-lg font-bold"
+              style={{
+                marginBottom: 8,
+              }}
+            >
+              Mengunduh yt-dlp
+            </h3>
             <p className="text-sm text-gray-400">Diperlukan untuk memutar audio YouTube...</p>
           </div>
         </div>
       )}
 
       {/* Login Modal */}
-      {showLoginModal && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 backdrop-blur-sm">
+      {isLogged && showLoginModal && (
+        <div
+          onClick={() => {
+            setIsLogged(false)
+            setShowLoginModal(false)
+          }}
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 backdrop-blur-sm"
+        >
           <div className="bg-linear-to-br from-gray-900 to-gray-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-gray-700 padding-1">
             <div className="flex flex-col items-center gap-6">
               <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
@@ -1168,7 +1193,15 @@ const FlowlyPlayer = () => {
       )}
 
       {/* Titlebar */}
-      <TitleBar eAPI={eAPI} youtubeAuth={youtubeAuth} handleLogout={handleLogout} />
+      <TitleBar
+        setIsLogged={setIsLogged}
+        showLoginModal={showLoginModal}
+        setShowLoginModal={setShowLoginModal}
+        isLogged={isLogged}
+        eAPI={eAPI}
+        youtubeAuth={youtubeAuth}
+        handleLogout={handleLogout}
+      />
 
       {/* Tabs */}
       <Tabs tab={tab} setTab={setTab} playlist={playlist} />
